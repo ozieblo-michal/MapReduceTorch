@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "mapreducetorch"
+version = "0.1.0"
+description = "Terraform setup for AWS EMR for model processing based on transfer learning in PyTorch"
+authors = ["ozieblo <59211762+ozieblo-michal@users.noreply.github.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pyyaml = { version = "!=6.0.0, !=5.4.0, !=5.4.1" }
+docker = "^7.0.0"
+docker-compose = "^1.29.2"
+torchvision = "^0.17.0"
+findspark = "^2.0.1"
+pandas = "^2.2.0"
+python-terraform = "^0.10.1"
+requests = "^2.31.0"
+pytest = "^8.0.0"
+black = "^24.1.1"
+pylama = "^8.4.1"
+numpy = "^1.26.3"
+pillow = "^10.2.0"
+matplotlib = "^3.8.2"
+validators = "^0.22.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
