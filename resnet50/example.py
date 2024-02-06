@@ -10,7 +10,7 @@ import warnings
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from datasets import DogHotdogClassificationDataset
+from doghotdogclassificationdataset import DogHotdogClassificationDataset
 
 # Suppress warnings to make the output cleaner, especially useful when running in a notebook or a production environment
 warnings.filterwarnings('ignore')
@@ -68,25 +68,50 @@ def train(model, dataloader, epochs=20):
             print(loss.item())
 
 
-def accuracy(model, dataset, dataloader):
+def accuracy(model, dataset, dataloader, show_image=True):
     """
-    Calculates the accuracy of the model on the provided dataset.
+    Calculates the accuracy of the model on the provided dataset and optionally displays an image from the validation set along with its label and prediction.
 
     Args:
         model: The neural network model whose accuracy is to be evaluated.
         dataset: The dataset used for evaluating the model.
         dataloader: DataLoader that provides batches of data from the dataset.
+        show_image: Flag to indicate whether an image should be displayed for validation along with its label and prediction.
     """
     # Calculate total number of items in dataset
     m = len(dataset)
     n_correct = 0
     for batch in dataloader:
         features, labels = batch
+        features, labels = features.to(device), labels.to(device)
         predictions = model(features)
-        # Count number of correct predictions      
+        # Count number of correct predictions
         correct = torch.round(predictions.squeeze()) == labels
-        n_correct += sum(correct)
-    print(f"Accuracy: {torch.round(100*n_correct / m)} %")
+        n_correct += correct.sum().item()
+    
+    # Calculate and print accuracy
+    accuracy = 100 * n_correct / m
+    print(f"Accuracy: {accuracy:.2f} %")
+    
+    if show_image:
+        # Display an image from the last batch
+        img, label = features[-1].cpu(), labels[-1].cpu()
+        predicted_label = torch.round(predictions[-1]).int().item()
+        img = img.numpy().transpose((1, 2, 0))  # Convert image to NumPy array and change order from CxHxW to HxWxC
+        
+        # Display the image
+        plt.imshow(img)
+        plt.title(f'Label: {label.item()}, Predicted: {predicted_label}')
+        plt.show()
+        
+        # Print label and prediction
+        label_dict = {0: "Not Hotdog", 1: "Hotdog"}  # Update this dictionary based on your dataset labels
+        print(f"Actual Label: {label_dict[label.item()]}")
+        print(f"Predicted Label: {label_dict[predicted_label]}")
+
+
+# Ensure the rest of your script remains unchanged
+
 
 if __name__ == '__main__':
     # Instantiate the classifier and dataset, then calculate initial accuracy, train, and recalculate accuracy

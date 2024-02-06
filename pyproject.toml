@@ -23,6 +23,11 @@ numpy = "^1.26.3"
 pillow = "^10.2.0"
 matplotlib = "^3.8.2"
 validators = "^0.22.0"
+databases = "^0.8.0"
+transformers = "^4.37.2"
+datasets = "^2.16.1"
+torch = "^2.2.0"
+accelerate = "^0.21.0"
 
 
 [build-system]
