@@ -1,0 +1,10 @@
+Text data example 1. This is a sample sentence for training the DistilBERT model.
+Text data example 2. DistilBERT is a lightweight version of BERT, designed for efficient training and inference.
+Text data example 3. Transfer learning allows us to fine-tune pre-trained models like DistilBERT on specific tasks.
+Text data example 4. PySpark is a powerful tool for distributed data processing in Spark.
+Text data example 5. Training a model on large text corpora requires substantial computational resources.
+Text data example 6. The accuracy of the model can be evaluated using metrics such as accuracy and F1 score.
+Text data example 7. Evaluating the performance of the model on a validation set helps in identifying overfitting.
+Text data example 8. Fine-tuning a pre-trained model on domain-specific data improves its performance on specific tasks.
+Text data example 9. Natural language processing tasks include text classification, named entity recognition, and machine translation.
+Text data example 10. Transformer-based models like BERT and DistilBERT have significantly advanced the field of natural language processing.

@@ -28,6 +28,7 @@ transformers = "^4.37.2"
 datasets = "^2.16.1"
 torch = "^2.2.0"
 accelerate = "^0.21.0"
+pyspark = "^3.5.0"
 
 
 [build-system]
