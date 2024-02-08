@@ -24,6 +24,12 @@ data = spark.read.text("text_data.txt")
 # What for: To tokenize the text data for training the DistilBERT model.
 tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
 
+# This model is trained on text data where 
+# the letter case has been normalized to lowercase (uncased). The tokenizer serves the purpose of splitting 
+# text into tokens, the smallest units of text, which can then be passed to the model for further analysis 
+# or prediction. In the case of DistilBERT, this tokenizer is compatible with the model and performs 
+# tokenization operations consistent with how the model was trained.
+
 # Tokenize the text data using the tokenizer.
 # What for: To convert text data into input IDs suitable for the DistilBERT model.
 tokenized_data = data.rdd.map(lambda row: tokenizer(row.value)["input_ids"])
@@ -35,6 +41,22 @@ max_length = tokenized_data.map(len).reduce(max)
 # Pad tokenized sequences to the maximum length.
 # What for: To ensure uniform length of input sequences required by the model.
 padded_data = tokenized_data.map(lambda x: x + [0] * (max_length - len(x)))
+
+# The second step involves aligning all tokenized sequences to the same length by adding the necessary 
+# number of zero tokens to the end of each sequence. This is necessary because many natural language 
+# processing models require all input data to have the same length. This enables efficient batch processing, 
+# speeding up model training and utilizing computational resources such as GPUs. Padding does not affect 
+# the informational content of the original text, as only zero tokens are added to the end of the sequences, 
+# ensuring consistency and uniformity of input data for the model.
+
+# For example, let's say we have a set of tokenized sentences as follows:
+
+# Sentence 1: [101, 202, 303, 102]
+# Sentence 2: [101, 404, 102
+# In order to align these sequences to the same length, we would need to pad the second sentence with zero tokens, resulting in:
+
+# Sentence 2 (padded): [101, 404, 102, 0]
+# Now both sentences have the same length, allowing them to be efficiently processed by the model.
 
 # Prepare training data as a list of dictionaries.
 # What for: To convert padded data into a format acceptable for model training.
@@ -56,16 +78,53 @@ training_args = TrainingArguments(
     output_dir='./output',
     overwrite_output_dir=True,
     num_train_epochs=3,
-    per_device_train_batch_size=8,
+    per_device_train_batch_size=16,
     logging_dir='./logs',
     max_steps=300
 )
 
+# per_device_train_batch_size:
+# Effect: Determines the number of training examples processed simultaneously on each device (e.g., GPU).
+# Alternative: Changing the batch size per device, for example, per_device_train_batch_size=16.
+
+# max_steps:
+# Effect: Specifies the maximum number of training steps (batches) that will be executed during training.
+# Alternative: Adjusting the maximum number of steps, for example, max_steps=500.
+
 # Prepare data collator for language modeling.
 # What for: To define how input data should be collated during training.
 data_collator = DataCollatorForLanguageModeling(
-    tokenizer=tokenizer, mlm=True, mlm_probability=0.15
+    tokenizer=tokenizer, mlm=True, mlm_probability=0.20
 )
+
+# DataCollatorForLanguageModeling is a class used in the Hugging Face Transformers library to preprocess 
+# input data before passing it to the model. In the context of natural language modeling, DataCollatorForLanguageModeling 
+# is a specialized data collator designed specifically for language models.
+
+# The main task of a data collator for natural language modeling is to prepare data for training the model 
+# in a format required by a given model. In the case of natural language modeling, the data collator is responsible 
+# for creating instances of a Masked Language Model (MLM).
+
+# The parameters passed to DataCollatorForLanguageModeling have the following meanings:
+
+# tokenizer: The tokenizer used to tokenize texts. It is used by the data collator to process input data.
+# mlm=True: Specifies whether the language model is to be modeled as a Masked Language Model (MLM). When set 
+# to True, some tokens in the input data will be masked, and the model will be trained to predict these tokens 
+# based on context.
+# mlm_probability=0.15: Specifies the probability of masking tokens in the input data. In this case, the masking 
+# probability is 15%.
+
+# Increasing or decreasing mlm_probability has the following consequences:
+
+# Increasing mlm_probability: This would result in more tokens being masked in the input data during training. 
+# As a consequence, the model would be trained to predict masked tokens more frequently, potentially leading to better 
+# performance in tasks where understanding context and predicting missing words is important, but it could also increase 
+# the difficulty of training and potentially lead to overfitting if set too high.
+# Decreasing mlm_probability: This would result in fewer tokens being masked in the input data during training. Consequently, 
+# the model would be trained less frequently on predicting masked tokens, which could potentially lead to worse performance 
+# in tasks that rely heavily on understanding context and predicting missing words. However, it could make the training process 
+# easier and less prone to overfitting.
+
 
 # Initialize a Trainer object for model training.
 # What for: To configure and execute the training process for the DistilBERT model.
