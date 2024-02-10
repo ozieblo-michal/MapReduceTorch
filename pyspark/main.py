@@ -16,9 +16,32 @@ spark = SparkSession.builder \
     .appName("DistilBERT Training") \
     .getOrCreate()
 
+
+def filter_sentences_by_token_limit(input_file_path: str, output_file_path: str, max_tokens: int = 512) -> None:
+    """
+    Filters out sentences from the input file that exceed the DistilBERT token limit and writes the rest to the output file.
+
+    Parameters:
+    - input_file_path (str): Path to the input text file.
+    - output_file_path (str): Path to the output text file where sentences within the token limit will be saved.
+    - max_tokens (int): Maximum number of tokens allowed per sentence. Defaults to 512.
+    """
+    tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+
+    with open(input_file_path, 'r', encoding='utf-8') as input_file, open(output_file_path, 'w', encoding='utf-8') as output_file:
+        for line in input_file:
+            tokens = tokenizer.tokenize(line)
+            if len(tokens) <= max_tokens:
+                output_file.write(line)
+
+input_file_path = "output.txt"
+output_file_path = "filtered_output.txt"
+filter_sentences_by_token_limit(input_file_path, output_file_path)
+
 # Read text data from a file into a Spark DataFrame.
 # What for: To load text data for training and evaluation.
-data = spark.read.text("text_data.txt")
+data = spark.read.text("filtered_output.txt")
+
 
 # Initialize a DistilBERT tokenizer.
 # What for: To tokenize the text data for training the DistilBERT model.
@@ -80,7 +103,7 @@ training_args = TrainingArguments(
     num_train_epochs=3,
     per_device_train_batch_size=16,
     logging_dir='./logs',
-    max_steps=300
+    max_steps=500
 )
 
 # per_device_train_batch_size:
@@ -170,15 +193,15 @@ def evaluate_model(trained_model, test_dataset):
 
 # Prepare the test dataset.
 # What for: To tokenize and pad the test data for evaluation.
-test_dataset = prepare_test_dataset()
+# test_dataset = prepare_test_dataset()
 
 # Evaluate the model on the test dataset.
 # What for: To assess the model's performance on unseen data.
-evaluation_result = evaluate_model(model, test_dataset)
+# evaluation_result = evaluate_model(model, test_dataset)
 
 # Print the evaluation results.
 # What for: To display the performance metrics of the model.
-print("Evaluation results:", evaluation_result)
+# print("Evaluation results:", evaluation_result)
 
 # loss: 0.2497 - This is the loss value achieved during the last training session. A lower loss value indicates better performance, meaning the model makes better predictions.
 # learning_rate: 0.0 - Indicates the learning rate value at the end of the last epoch. A value of 0.0 indicates that the training has finished, as the learning rate has been reduced to zero.
@@ -204,7 +227,8 @@ fill_mask = pipeline(
 examples = [
     "I like to [MASK] on the weekends.",
     "She enjoys [MASK] books in her free time.",
-    "The [MASK] is shining brightly today."
+    "The [MASK] is shining brightly today.",
+    "Incorporating a [MASK] simplifies the management of workflows."
 ]
 
 # Generate predictions for each example.

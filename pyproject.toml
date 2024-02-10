@@ -29,6 +29,9 @@ datasets = "^2.16.1"
 torch = "^2.2.0"
 accelerate = "^0.21.0"
 pyspark = "^3.5.0"
+ebooklib = "^0.18"
+pymupdf = "^1.23.21"
+beautifulsoup4 = "^4.12.3"
 
 
 [build-system]
