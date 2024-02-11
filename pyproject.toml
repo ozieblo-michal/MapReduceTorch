@@ -32,6 +32,8 @@ pyspark = "^3.5.0"
 ebooklib = "^0.18"
 pymupdf = "^1.23.21"
 beautifulsoup4 = "^4.12.3"
+optuna = "^3.5.0"
+nltk = "^3.8.1"
 
 
 [build-system]
