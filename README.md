@@ -2,7 +2,12 @@
 
 ## Overview
 
-The goal of this package is the efficient conversion of text into educational flashcards. It streamlines the process of transforming digital books and documents into plain text. The module prepares data for NLP tasks and optimizes language models for enhanced performance. It uses AWS Elastic MapReduce (EMR) for time-efficient model training. 
+The goal of this package is the efficient conversion of text into educational flashcards. It streamlines the process of transforming digital books and documents into plain text. The module prepares data for NLP tasks and optimizes language models for enhanced performance. It uses AWS Elastic MapReduce (EMR) for time-efficient model training.
+
+![](schema2.png "")
+
+![](schema.png "")
+
 
 
 ## Features
