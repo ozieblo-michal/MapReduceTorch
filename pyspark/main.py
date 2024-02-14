@@ -65,74 +65,10 @@ def synonym_replacement(sentence, n=1):
     return sentence
 
 
-def augment_example(example, augment_rate=0.1, n=1):
-    """
-    Augments the text by replacing n words with their synonyms with a given probability.
-
-    Args:
-    - example (dict): A dictionary containing the key 'text' with text to augment.
-    - augment_rate (float): The probability of augmenting each sentence.
-    - n (int): The number of words to replace with synonyms in each sentence.
-
-    Returns:
-    - dict: A dictionary containing the key 'text' with the augmented text.
-    """
-    augmented_text = (
-        synonym_replacement(example["text"], n=n)
-        if random.uniform(0, 1) < augment_rate
-        else example["text"]
-    )
-    return {"text": augmented_text}
 
 
-# Initialize SparkSession
 spark = SparkSession.builder.appName("DistilBERT Training").getOrCreate()
 
-
-def filter_sentences_by_token_limit(
-    input_file_path: str, output_file_path: str, max_tokens: int = 512
-):
-    """
-    Filters sentences in a text file, excluding those that exceed a specified token limit.
-
-    Args:
-    - input_file_path (str): The path to the input text file.
-    - output_file_path (str): The path where the filtered output text file will be saved.
-    - max_tokens (int): The maximum number of tokens allowed per sentence.
-    """
-    tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
-    with open(input_file_path, "r", encoding="utf-8") as input_file, open(
-        output_file_path, "w", encoding="utf-8"
-    ) as output_file:
-        for line in input_file:
-            tokens = tokenizer.tokenize(line)
-            if len(tokens) <= max_tokens:
-                output_file.write(line)
-
-
-input_file_path = (
-    "/Users/michalozieblo/Desktop/mapreducetorch/scraper/output/output.txt"
-)
-output_file_path = (
-    "/Users/michalozieblo/Desktop/mapreducetorch/scraper/output/filtered_output.txt"
-)
-filter_sentences_by_token_limit(input_file_path, output_file_path)
-
-# Load and augment data
-data = spark.read.text(output_file_path).rdd.map(lambda r: r[0]).collect()
-data = Dataset.from_dict({"text": data})
-
-train_data, eval_data = data.train_test_split(test_size=0.1).values()
-
-train_augmented_data = train_data.map(
-    lambda example: augment_example(example, augment_rate=0.3, n=2)
-)
-eval_augmented_data = eval_data.map(
-    lambda example: augment_example(example, augment_rate=0.3, n=2)
-)
-
-
-# Tokenize data
 tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
 
 
@@ -141,23 +77,53 @@ new_special_tokens = ["CUDA", "GPU", "CPU", "DQP"]
 tokenizer.add_tokens(new_special_tokens)
 
 
-def tokenize_function(examples):
-    """
-    Tokenizes the texts from examples.
+from pyspark.sql.functions import udf
+from pyspark.sql.types import BooleanType
 
-    Args:
-    - examples (dict): A dictionary containing the key 'text' with a list of texts to tokenize.
+def filter_by_token_count(sentence, max_tokens=512):
+    tokens = tokenizer.tokenize(sentence)
+    return len(tokens) <= max_tokens
 
-    Returns:
-    - dict: A dictionary containing tokenized texts.
-    """
-    return tokenizer(
-        examples["text"], padding="max_length", truncation=True, max_length=512
-    )
+filter_udf = udf(filter_by_token_count, BooleanType())
+
+# Load data as DataFrame
+data_df = spark.read.text("/Users/michalozieblo/Desktop/mapreducetorch/scraper/output/output.txt")
+
+# Filter sentences by token limit using UDF
+filtered_data_df = data_df.filter(filter_udf(data_df.value))
+
+# Save or continue processing as needed
+filtered_data_df.write.text("/Users/michalozieblo/Desktop/mapreducetorch/scraper/output/filtered_output.txt")
+
+data = data_df
 
 
-train_dataset = train_augmented_data.map(tokenize_function, batched=True)
-eval_dataset = eval_augmented_data.map(tokenize_function, batched=True)
+# Define UDF for data augmentation
+def augment_sentence(sentence, augment_rate=0.1, n=1):
+    # Tu możesz wykorzystać istniejącą logikę augmentacji, np. synonym_replacement
+    return synonym_replacement(sentence, n) if random.uniform(0, 1) < augment_rate else sentence
+
+augment_udf = udf(augment_sentence)
+
+# Apply augmentation to DataFrame
+augmented_data_df = filtered_data_df.withColumn("augmented", augment_udf(filtered_data_df.value))
+
+augmented_data_df.write.mode('overwrite').parquet('/Users/michalozieblo/Desktop/mapreducetorch/scraper/augmented/data')
+
+
+train_dataset, eval_dataset = augmented_data_df.randomSplit([0.9, 0.1])
+
+
+
+
+
+# from dask.distributed import Client, LocalCluster
+
+# cluster = LocalCluster()
+# client = Client(cluster)
+
+
+
 
 
 def model_training_function(trial):

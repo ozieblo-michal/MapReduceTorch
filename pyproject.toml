@@ -34,6 +34,10 @@ pymupdf = "^1.23.21"
 beautifulsoup4 = "^4.12.3"
 optuna = "^3.5.0"
 nltk = "^3.8.1"
+torchaudio = "*"
+pytorch-lightning = "*"
+dask = {extras = ["distributed"], version = "^2024.2.0"}
+dask-ml = "*"
 
 
 [build-system]
