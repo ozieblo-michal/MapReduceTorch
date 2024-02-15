@@ -17,15 +17,7 @@ nltk.download("wordnet")
 
 
 def get_synonyms(word):
-    """
-    Fetches synonyms for a given word.
 
-    Args:
-    - word (str): The word for which to find synonyms.
-
-    Returns:
-    - list: A list of synonyms for the given word.
-    """
     synonyms = set()
     for syn in wordnet.synsets(word):
         for lem in syn.lemmas():
@@ -37,16 +29,7 @@ def get_synonyms(word):
 
 
 def synonym_replacement(sentence, n=1):
-    """
-    Replaces up to n words in the sentence with their synonyms.
 
-    Args:
-    - sentence (str): The sentence to augment.
-    - n (int): The maximum number of words to replace.
-
-    Returns:
-    - str: The augmented sentence.
-    """
     words = sentence.split()
     new_words = words.copy()
     random_word_list = list(set([word for word in words if wordnet.synsets(word)]))
@@ -65,9 +48,53 @@ def synonym_replacement(sentence, n=1):
     return sentence
 
 
+def augment_example(example, augment_rate=0.1, n=1):
+
+    augmented_text = (
+        synonym_replacement(example["text"], n=n)
+        if random.uniform(0, 1) < augment_rate
+        else example["text"]
+    )
+    return {"text": augmented_text}
 
 
 spark = SparkSession.builder.appName("DistilBERT Training").getOrCreate()
+
+
+def filter_sentences_by_token_limit(
+    input_file_path: str, output_file_path: str, max_tokens: int = 512
+):
+
+    tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
+    with open(input_file_path, "r", encoding="utf-8") as input_file, open(
+        output_file_path, "w", encoding="utf-8"
+    ) as output_file:
+        for line in input_file:
+            tokens = tokenizer.tokenize(line)
+            if len(tokens) <= max_tokens:
+                output_file.write(line)
+
+
+input_file_path = (
+    "/Users/michalozieblo/Desktop/mapreducetorch/scraper/output/output.txt"
+)
+output_file_path = (
+    "/Users/michalozieblo/Desktop/mapreducetorch/scraper/output/filtered_output"
+)
+filter_sentences_by_token_limit(input_file_path, output_file_path)
+
+data = spark.read.text(output_file_path).rdd.map(lambda r: r[0]).collect()
+data = Dataset.from_dict({"text": data})
+
+train_data, eval_data = data.train_test_split(test_size=0.1).values()
+
+train_augmented_data = train_data.map(
+    lambda example: augment_example(example, augment_rate=0.3, n=2)
+)
+eval_augmented_data = eval_data.map(
+    lambda example: augment_example(example, augment_rate=0.3, n=2)
+)
+
 
 tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
 
@@ -77,53 +104,23 @@ new_special_tokens = ["CUDA", "GPU", "CPU", "DQP"]
 tokenizer.add_tokens(new_special_tokens)
 
 
-from pyspark.sql.functions import udf
-from pyspark.sql.types import BooleanType
+def tokenize_function(examples):
+    """
+    Tokenizes the texts from examples.
 
-def filter_by_token_count(sentence, max_tokens=512):
-    tokens = tokenizer.tokenize(sentence)
-    return len(tokens) <= max_tokens
+    Args:
+    - examples (dict): A dictionary containing the key 'text' with a list of texts to tokenize.
 
-filter_udf = udf(filter_by_token_count, BooleanType())
-
-# Load data as DataFrame
-data_df = spark.read.text("/Users/michalozieblo/Desktop/mapreducetorch/scraper/output/output.txt")
-
-# Filter sentences by token limit using UDF
-filtered_data_df = data_df.filter(filter_udf(data_df.value))
-
-# Save or continue processing as needed
-filtered_data_df.write.text("/Users/michalozieblo/Desktop/mapreducetorch/scraper/output/filtered_output.txt")
-
-data = data_df
+    Returns:
+    - dict: A dictionary containing tokenized texts.
+    """
+    return tokenizer(
+        examples["text"], padding="max_length", truncation=True, max_length=512
+    )
 
 
-# Define UDF for data augmentation
-def augment_sentence(sentence, augment_rate=0.1, n=1):
-    # Tu możesz wykorzystać istniejącą logikę augmentacji, np. synonym_replacement
-    return synonym_replacement(sentence, n) if random.uniform(0, 1) < augment_rate else sentence
-
-augment_udf = udf(augment_sentence)
-
-# Apply augmentation to DataFrame
-augmented_data_df = filtered_data_df.withColumn("augmented", augment_udf(filtered_data_df.value))
-
-augmented_data_df.write.mode('overwrite').parquet('/Users/michalozieblo/Desktop/mapreducetorch/scraper/augmented/data')
-
-
-train_dataset, eval_dataset = augmented_data_df.randomSplit([0.9, 0.1])
-
-
-
-
-
-# from dask.distributed import Client, LocalCluster
-
-# cluster = LocalCluster()
-# client = Client(cluster)
-
-
-
+train_dataset = train_augmented_data.map(tokenize_function, batched=True)
+eval_dataset = eval_augmented_data.map(tokenize_function, batched=True)
 
 
 def model_training_function(trial):
@@ -138,8 +135,6 @@ def model_training_function(trial):
     """
 
     model = DistilBertForMaskedLM.from_pretrained("distilbert-base-uncased")
-
-    # IMPORTANT: Adjust the model's token embeddings to accommodate new tokens
 
     model.resize_token_embeddings(len(tokenizer))
 
@@ -175,13 +170,11 @@ def model_training_function(trial):
     return eval_results["eval_loss"]
 
 
-# Run Optuna optimization
 study = optuna.create_study(direction="minimize")
 study.optimize(model_training_function, n_trials=3)
 
 best_trial = study.best_trial
 print(f"Best trial: {best_trial.number} with loss {best_trial.value}")
 
-# Load the best model
 best_model_path = f"./best_model_trial_{best_trial.number}"
 model = DistilBertForMaskedLM.from_pretrained(best_model_path)
