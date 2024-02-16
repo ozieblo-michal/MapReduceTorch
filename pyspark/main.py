@@ -96,6 +96,11 @@ eval_augmented_data = eval_data.map(
 )
 
 
+
+
+
+
+
 tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
 
 
@@ -123,58 +128,9 @@ train_dataset = train_augmented_data.map(tokenize_function, batched=True)
 eval_dataset = eval_augmented_data.map(tokenize_function, batched=True)
 
 
-def model_training_function(trial):
-    """
-    Objective function for Optuna optimization. Trains the model and returns the evaluation loss.
 
-    Args:
-    - trial (optuna.trial.Trial): An Optuna trial object.
+train_dataset = train_dataset.to_pandas()
+eval_dataset = eval_dataset.to_pandas()
 
-    Returns:
-    - float: The evaluation loss of the model.
-    """
-
-    model = DistilBertForMaskedLM.from_pretrained("distilbert-base-uncased")
-
-    model.resize_token_embeddings(len(tokenizer))
-
-    training_args = TrainingArguments(
-        output_dir=f"./results_trial_{trial.number}",
-        num_train_epochs=trial.suggest_int("num_train_epochs", 1, 5),
-        per_device_train_batch_size=trial.suggest_categorical(
-            "per_device_train_batch_size", [8, 16]
-        ),
-        learning_rate=trial.suggest_float("learning_rate", 5e-5, 5e-4),
-        logging_dir="./logs",
-        logging_steps=10,
-        use_cpu=True,
-    )
-
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        data_collator=DataCollatorForLanguageModeling(
-            tokenizer=tokenizer, mlm=True, mlm_probability=0.15
-        ),
-    )
-
-    trainer.train()
-    eval_results = trainer.evaluate()
-
-    print(eval_results)
-
-    model.save_pretrained(f"./best_model_trial_{trial.number}")
-
-    return eval_results["eval_loss"]
-
-
-study = optuna.create_study(direction="minimize")
-study.optimize(model_training_function, n_trials=3)
-
-best_trial = study.best_trial
-print(f"Best trial: {best_trial.number} with loss {best_trial.value}")
-
-best_model_path = f"./best_model_trial_{best_trial.number}"
-model = DistilBertForMaskedLM.from_pretrained(best_model_path)
+train_dataset.to_parquet('/Users/michalozieblo/Desktop/mapreducetorch/dask/augmented_parquet/train.parquet')
+eval_dataset.to_parquet('/Users/michalozieblo/Desktop/mapreducetorch/dask/augmented_parquet/eval.parquet')
