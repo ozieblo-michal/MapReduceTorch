@@ -5,7 +5,6 @@ from dask.distributed import Client
 import os
 os.environ['DASK_MULTIPROCESSING_METHOD'] = 'spawn'
 
-
 if __name__ == '__main__':
 
 
@@ -14,23 +13,26 @@ if __name__ == '__main__':
     train_ddf = dd.read_parquet('/Users/michalozieblo/Desktop/mapreducetorch/dask/augmented_parquet/train.parquet')
     eval_ddf = dd.read_parquet('/Users/michalozieblo/Desktop/mapreducetorch/dask/augmented_parquet/eval.parquet')
 
+
     from torch.utils.data import Dataset, DataLoader
     import torch
 
     class CustomDataset(Dataset):
         def __init__(self, ddf):
-            self.ddf = ddf.compute() 
-            
+            self.ddf = ddf.compute()
+
         def __len__(self):
             return len(self.ddf)
-        
+
         def __getitem__(self, idx):
-        
             row = self.ddf.iloc[idx]
-            input_ids = torch.tensor(row.input_ids)
-            attention_mask = torch.tensor(row.attention_mask)
-            labels = torch.tensor(row.labels) 
-            return input_ids, attention_mask, labels
+
+            input_ids = torch.tensor(row['input_ids'], dtype=torch.long)
+            token_type_ids = torch.tensor(row['token_type_ids'], dtype=torch.long) if 'token_type_ids' in row else None
+            attention_mask = torch.tensor(row['attention_mask'], dtype=torch.long)
+            labels = torch.tensor(row['labels'], dtype=torch.long) if 'labels' in row else None
+
+            return {'input_ids': input_ids, 'attention_mask': attention_mask, 'labels': labels, 'token_type_ids': token_type_ids}
 
 
     train_dataset = CustomDataset(train_ddf)
@@ -82,7 +84,6 @@ if __name__ == '__main__':
         return eval_results["eval_loss"]
 
 
-    
 
 
     import optuna
