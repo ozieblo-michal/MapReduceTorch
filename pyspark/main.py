@@ -109,25 +109,85 @@ new_special_tokens = ["CUDA", "GPU", "CPU", "DQP"]
 tokenizer.add_tokens(new_special_tokens)
 
 
-def tokenize_function(examples):
-    """
-    Tokenizes the texts from examples.
+# def tokenize_function(examples):
+#     """
+#     Tokenizes the texts from examples.
 
-    Args:
-    - examples (dict): A dictionary containing the key 'text' with a list of texts to tokenize.
+#     Args:
+#     - examples (dict): A dictionary containing the key 'text' with a list of texts to tokenize.
 
-    Returns:
-    - dict: A dictionary containing tokenized texts.
-    """
-    return tokenizer(
-        examples["text"], padding="max_length", truncation=True, max_length=512
-    )
-
-
-train_dataset = train_augmented_data.map(tokenize_function, batched=True)
-eval_dataset = eval_augmented_data.map(tokenize_function, batched=True)
+#     Returns:
+#     - dict: A dictionary containing tokenized texts.
+#     """
+#     return tokenizer(
+#         examples["text"], padding="max_length", truncation=True, max_length=512
+#     )
 
 
+import torch
+
+import torch
+from transformers import BertTokenizer
+import numpy as np
+
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+tokens = tokenizer.encode_plus("The quick brown fox jumps over the lazy dog", max_length=512, padding='max_length', truncation=True, return_tensors='pt')
+
+input_ids = tokens['input_ids']
+attention_mask = tokens['attention_mask']
+
+def improved_masking(input_ids, attention_mask, tokenizer, mask_probability=0.15):
+    labels = input_ids.clone()
+    candidates = (input_ids != tokenizer.cls_token_id) & \
+                 (input_ids != tokenizer.sep_token_id) & \
+                 (input_ids != tokenizer.pad_token_id) & \
+                 (torch.rand(input_ids.shape) < mask_probability)
+
+    selection = torch.where(candidates)
+    for i in range(selection[0].size(0)):
+        random_action = np.random.choice(["mask", "random_token", "unchanged"], p=[0.8, 0.1, 0.1])
+        if random_action == "mask":
+            input_ids[selection[0][i], selection[1][i]] = tokenizer.mask_token_id
+        elif random_action == "random_token":
+            input_ids[selection[0][i], selection[1][i]] = torch.randint(0, len(tokenizer), size=(1,))
+
+    labels[~candidates] = -100
+    return input_ids, attention_mask, labels
+
+input_ids, attention_mask, labels = improved_masking(input_ids, attention_mask, tokenizer)
+
+print("Input IDs:", input_ids)
+print("Labels:", labels)
+
+
+from transformers import BertTokenizer
+import torch
+
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+def tokenize_and_mask_function(examples):
+    inputs = tokenizer(examples["text"], padding="max_length", truncation=True, max_length=512, return_tensors="pt")
+
+    input_ids, attention_mask, labels = improved_masking(inputs['input_ids'], inputs['attention_mask'], tokenizer)
+
+    inputs['input_ids'] = input_ids
+    inputs['attention_mask'] = attention_mask
+    inputs['labels'] = labels
+
+    return inputs
+
+from datasets import Dataset
+
+data = {'text': ["The quick brown fox jumps over the lazy dog", "I love machine learning"]}
+dataset = Dataset.from_dict(data)
+
+tokenized_dataset = dataset.map(tokenize_and_mask_function, batched=True)
+
+for i in range(len(tokenized_dataset)):
+    print(tokenized_dataset[i])
+
+train_dataset = train_augmented_data.map(tokenize_and_mask_function, batched=True)
+eval_dataset = eval_augmented_data.map(tokenize_and_mask_function, batched=True)
 
 train_dataset = train_dataset.to_pandas()
 eval_dataset = eval_dataset.to_pandas()
