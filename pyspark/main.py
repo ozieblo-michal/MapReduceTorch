@@ -1,23 +1,40 @@
-import optuna
 import random
 import nltk
 from nltk.corpus import wordnet
 from pyspark.sql import SparkSession
-from transformers import (
-    DistilBertTokenizer,
-    DistilBertForMaskedLM,
-    Trainer,
-    TrainingArguments,
-    DataCollatorForLanguageModeling,
-)
+from transformers import DistilBertTokenizer
 from datasets import Dataset
+import torch
+import numpy as np
+
+def download_nltk_resource(resource_name: str, download_dir: str = None):
+    """
+    Checks if an NLTK resource is available locally; if not, downloads it.
+
+    Args:
+    - resource_name (str): The name of the NLTK resource.
+    - download_dir (str, optional): The directory to download the NLTK resource to.
+                                    If None, uses NLTK's default download directory.
+    """
+    try:
+        # Attempt to find the resource. If found, this does nothing.
+        nltk.data.find(resource_name)
+    except LookupError:
+        nltk.download(resource_name.split('/')[1], download_dir=download_dir)
 
 # Download necessary NLTK resources for finding synonyms
-nltk.download("wordnet")
+download_nltk_resource('corpora/wordnet')
 
+def get_synonyms(word: str) -> list[str]:
+    """
+    Finds and returns a list of synonyms for a given word using NLTK's WordNet.
 
-def get_synonyms(word):
+    Args:
+    - word (str): The word for which synonyms are to be found.
 
+    Returns:
+    - list[str]: A list of unique synonyms for the word.
+    """
     synonyms = set()
     for syn in wordnet.synsets(word):
         for lem in syn.lemmas():
@@ -27,9 +44,17 @@ def get_synonyms(word):
         synonyms.remove(word)
     return list(synonyms)
 
+def synonym_replacement(sentence: str, n: int = 1) -> str:
+    """
+    Replaces up to 'n' words in the given sentence with their synonyms.
 
-def synonym_replacement(sentence, n=1):
+    Args:
+    - sentence (str): The original sentence.
+    - n (int): The maximum number of words to replace with synonyms.
 
+    Returns:
+    - str: The modified sentence with up to 'n' synonyms replaced.
+    """
     words = sentence.split()
     new_words = words.copy()
     random_word_list = list(set([word for word in words if wordnet.synsets(word)]))
@@ -47,9 +72,18 @@ def synonym_replacement(sentence, n=1):
     sentence = " ".join(new_words)
     return sentence
 
+def augment_example(example: dict, augment_rate: float = 0.1, n: int = 1) -> dict:
+    """
+    Augments a text example by replacing up to 'n' words with synonyms based on a given augmentation rate.
 
-def augment_example(example, augment_rate=0.1, n=1):
+    Args:
+    - example (dict): The example to augment, containing at least a "text" key.
+    - augment_rate (float): The probability of applying augmentation to the text.
+    - n (int): The maximum number of words to replace with synonyms in the text.
 
+    Returns:
+    - dict: A dictionary with the key "text" containing the augmented text.
+    """
     augmented_text = (
         synonym_replacement(example["text"], n=n)
         if random.uniform(0, 1) < augment_rate
@@ -57,14 +91,19 @@ def augment_example(example, augment_rate=0.1, n=1):
     )
     return {"text": augmented_text}
 
-
 spark = SparkSession.builder.appName("DistilBERT Training").getOrCreate()
-
 
 def filter_sentences_by_token_limit(
     input_file_path: str, output_file_path: str, max_tokens: int = 512
-):
+) -> None:
+    """
+    Filters sentences from an input file and writes those with a token count less than or equal to 'max_tokens' to an output file.
 
+    Args:
+    - input_file_path (str): Path to the input file.
+    - output_file_path (str): Path to the output file where filtered sentences will be written.
+    - max_tokens (int): The maximum number of tokens allowed for a sentence to be included in the output.
+    """
     tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
     with open(input_file_path, "r", encoding="utf-8") as input_file, open(
         output_file_path, "w", encoding="utf-8"
@@ -74,13 +113,13 @@ def filter_sentences_by_token_limit(
             if len(tokens) <= max_tokens:
                 output_file.write(line)
 
-
 input_file_path = (
     "/Users/michalozieblo/Desktop/mapreducetorch/scraper/output/output.txt"
 )
 output_file_path = (
     "/Users/michalozieblo/Desktop/mapreducetorch/scraper/output/filtered_output"
 )
+
 filter_sentences_by_token_limit(input_file_path, output_file_path)
 
 data = spark.read.text(output_file_path).rdd.map(lambda r: r[0]).collect()
@@ -95,48 +134,32 @@ eval_augmented_data = eval_data.map(
     lambda example: augment_example(example, augment_rate=0.3, n=2)
 )
 
-
-
-
-
-
-
 tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
-
 
 new_special_tokens = ["CUDA", "GPU", "CPU", "DQP"]
 
 tokenizer.add_tokens(new_special_tokens)
 
 
-# def tokenize_function(examples):
-#     """
-#     Tokenizes the texts from examples.
 
-#     Args:
-#     - examples (dict): A dictionary containing the key 'text' with a list of texts to tokenize.
-
-#     Returns:
-#     - dict: A dictionary containing tokenized texts.
-#     """
-#     return tokenizer(
-#         examples["text"], padding="max_length", truncation=True, max_length=512
-#     )
-
-
-import torch
-
-import torch
-from transformers import BertTokenizer
-import numpy as np
-
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 tokens = tokenizer.encode_plus("The quick brown fox jumps over the lazy dog", max_length=512, padding='max_length', truncation=True, return_tensors='pt')
 
 input_ids = tokens['input_ids']
 attention_mask = tokens['attention_mask']
 
-def improved_masking(input_ids, attention_mask, tokenizer, mask_probability=0.15):
+def improved_masking(input_ids: torch.Tensor, attention_mask: torch.Tensor, tokenizer: DistilBertTokenizer, mask_probability: float = 0.15) -> (torch.Tensor, torch.Tensor, torch.Tensor):
+    """
+    Applies an improved masking strategy to input_ids based on mask_probability.
+
+    Args:
+    - input_ids (torch.Tensor): Tensor of token ids.
+    - attention_mask (torch.Tensor): Tensor indicating which tokens should be attended to.
+    - tokenizer (DistilBertTokenizer): Tokenizer instance used for token id conversions.
+    - mask_probability (float): Probability with which a token will be masked.
+
+    Returns:
+    - Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: Modified input_ids, unchanged attention_mask, and labels for training.
+    """
     labels = input_ids.clone()
     candidates = (input_ids != tokenizer.cls_token_id) & \
                  (input_ids != tokenizer.sep_token_id) & \
@@ -160,23 +183,22 @@ print("Input IDs:", input_ids)
 print("Labels:", labels)
 
 
-from transformers import BertTokenizer
-import torch
+def tokenize_and_mask_function(examples: dict) -> dict:
+    """
+    Tokenizes the text in 'examples' and applies improved masking.
 
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    Args:
+    - examples (dict): Dictionary containing text examples under the key "text".
 
-def tokenize_and_mask_function(examples):
+    Returns:
+    - dict: Dictionary containing modified input_ids, attention_mask, and labels for training.
+    """
     inputs = tokenizer(examples["text"], padding="max_length", truncation=True, max_length=512, return_tensors="pt")
-
     input_ids, attention_mask, labels = improved_masking(inputs['input_ids'], inputs['attention_mask'], tokenizer)
-
     inputs['input_ids'] = input_ids
     inputs['attention_mask'] = attention_mask
     inputs['labels'] = labels
-
     return inputs
-
-from datasets import Dataset
 
 data = {'text': ["The quick brown fox jumps over the lazy dog", "I love machine learning"]}
 dataset = Dataset.from_dict(data)
