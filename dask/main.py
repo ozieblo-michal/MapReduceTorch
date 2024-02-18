@@ -1,5 +1,4 @@
 import os
-
 import optuna
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -10,11 +9,110 @@ from transformers import (
     Trainer,
     TrainingArguments,
 )
-
 import dask.dataframe as dd
 from dask.distributed import Client
 
+# A fresh python interpreter is started for the child process, which then imports the parent
+# module/script. It's slower but safer as it avoids issues related to state inheritance from
+# the parent process.
+# Setting the multiprocessing method to "spawn" is particularly important when using Dask with
+# libraries that are not fork-safe (such as TensorFlow or PyTorch when using CUDA). The "fork"
+# method can lead to unpredictable behavior or crashes in such environments, especially on platforms
+# where "fork" is the default method (e.g., Linux). By setting the method to "spawn", Dask ensures
+# that each worker process starts from a clean state, improving compatibility and stability when
+# using multiprocessing with these libraries.
 os.environ["DASK_MULTIPROCESSING_METHOD"] = "spawn"
+
+
+class CustomDataset(Dataset):
+    """A custom PyTorch Dataset to load Dask DataFrames for language modeling."""
+
+    def __init__(self, ddf: dd.DataFrame):
+        """
+        Initializes the dataset by computing the Dask DataFrame and storing it in memory.
+
+        Args:
+        - ddf (dd.DataFrame): The Dask DataFrame to load.
+        """
+        self.ddf = ddf.compute()
+
+    def __len__(self) -> int:
+        """Returns the length of the dataset."""
+        return len(self.ddf)
+
+    def __getitem__(self, idx: int) -> dict:
+        """
+        Retrieves an item by index.
+
+        Args:
+        - idx (int): Index of the item.
+
+        Returns:
+        - dict: A dictionary containing input_ids, attention_mask, optional labels, and token_type_ids tensors.
+        """
+        row = self.ddf.iloc[idx]
+        input_ids = torch.tensor(row["input_ids"], dtype=torch.long)
+        attention_mask = torch.tensor(row["attention_mask"], dtype=torch.long)
+        labels = (
+            torch.tensor(row["labels"], dtype=torch.long) if "labels" in row else None
+        )
+        token_type_ids = (
+            torch.tensor(row["token_type_ids"], dtype=torch.long)
+            if "token_type_ids" in row
+            else None
+        )
+
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "labels": labels,
+            "token_type_ids": token_type_ids,
+        }
+
+
+def model_training_function(trial: optuna.Trial) -> float:
+    """
+    Trains a DistilBert model using parameters suggested by an Optuna trial.
+
+    Args:
+    - trial (optuna.Trial): The Optuna trial suggesting hyperparameters.
+
+    Returns:
+    - float: The evaluation loss of the model.
+    """
+    tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
+    new_special_tokens = ["CUDA", "GPU", "CPU", "DQP"]
+    tokenizer.add_tokens(new_special_tokens)
+
+    num_train_epochs = trial.suggest_int("num_train_epochs", 1, 5)
+    learning_rate = trial.suggest_float("learning_rate", 5e-5, 5e-4)
+
+    model = DistilBertForMaskedLM.from_pretrained("distilbert-base-uncased")
+    model.resize_token_embeddings(len(tokenizer))
+
+    training_args = TrainingArguments(
+        output_dir=f"./results_trial_{trial.number}",
+        num_train_epochs=num_train_epochs,
+        per_device_train_batch_size=8,
+        learning_rate=learning_rate,
+        logging_dir="./logs",
+    )
+
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+        data_collator=DataCollatorForLanguageModeling(
+            tokenizer=tokenizer, mlm=True, mlm_probability=0.15
+        ),
+    )
+
+    trainer.train()
+    eval_results = trainer.evaluate()
+
+    return eval_results["eval_loss"]
+
 
 if __name__ == "__main__":
 
@@ -27,75 +125,11 @@ if __name__ == "__main__":
         "/Users/michalozieblo/Desktop/mapreducetorch/dask/augmented_parquet/eval.parquet"
     )
 
-    class CustomDataset(Dataset):
-        def __init__(self, ddf):
-            self.ddf = ddf.compute()
-
-        def __len__(self):
-            return len(self.ddf)
-
-        def __getitem__(self, idx):
-            row = self.ddf.iloc[idx]
-
-            input_ids = torch.tensor(row["input_ids"], dtype=torch.long)
-            token_type_ids = (
-                torch.tensor(row["token_type_ids"], dtype=torch.long)
-                if "token_type_ids" in row
-                else None
-            )
-            attention_mask = torch.tensor(row["attention_mask"], dtype=torch.long)
-            labels = (
-                torch.tensor(row["labels"], dtype=torch.long)
-                if "labels" in row
-                else None
-            )
-
-            return {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask,
-                "labels": labels,
-                "token_type_ids": token_type_ids,
-            }
-
     train_dataset = CustomDataset(train_ddf)
     eval_dataset = CustomDataset(eval_ddf)
 
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=0)
     eval_loader = DataLoader(eval_dataset, batch_size=16, shuffle=True, num_workers=0)
-
-    def model_training_function(trial):
-        tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
-        new_special_tokens = ["CUDA", "GPU", "CPU", "DQP"]
-        tokenizer.add_tokens(new_special_tokens)
-
-        num_train_epochs = trial.suggest_int("num_train_epochs", 1, 5)
-        learning_rate = trial.suggest_float("learning_rate", 5e-5, 5e-4)
-
-        model = DistilBertForMaskedLM.from_pretrained("distilbert-base-uncased")
-        model.resize_token_embeddings(len(tokenizer))
-
-        training_args = TrainingArguments(
-            output_dir=f"./results_trial_{trial.number}",
-            num_train_epochs=num_train_epochs,
-            per_device_train_batch_size=8,
-            learning_rate=learning_rate,
-            logging_dir="./logs",
-        )
-
-        trainer = Trainer(
-            model=model,
-            args=training_args,
-            train_dataset=train_dataset,
-            eval_dataset=eval_dataset,
-            data_collator=DataCollatorForLanguageModeling(
-                tokenizer=tokenizer, mlm=True, mlm_probability=0.15
-            ),
-        )
-
-        trainer.train()
-        eval_results = trainer.evaluate()
-
-        return eval_results["eval_loss"]
 
     study = optuna.create_study(direction="minimize")
     study.optimize(model_training_function, n_trials=3)
