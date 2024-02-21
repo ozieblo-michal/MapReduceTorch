@@ -1,0 +1,10 @@
+Test data example 1. This is a test sentence for evaluating the DistilBERT model.
+Test data example 2. The quick brown fox jumps over the lazy dog.
+Test data example 3. DistilBERT achieves similar performance to BERT but with fewer parameters.
+Test data example 4. Transfer learning enables models like DistilBERT to be applied to various natural language processing tasks.
+Test data example 5. PySpark simplifies distributed data processing in Spark.
+Test data example 6. Evaluating a model's performance on a separate test set is important for assessing its generalization ability.
+Test data example 7. The F1 score is a commonly used metric for evaluating model performance in classification tasks.
+Test data example 8. Fine-tuning a pre-trained language model like DistilBERT on domain-specific data often leads to improved performance.
+Test data example 9. Named entity recognition is a task in natural language processing that involves identifying entities such as names, dates, and locations.
+Test data example 10. The Transformer architecture, used in models like BERT and DistilBERT, has revolutionized the field of natural language processing.

@@ -38,6 +38,8 @@ torchaudio = "*"
 pytorch-lightning = "*"
 dask = {extras = ["distributed"], version = "^2024.2.0"}
 dask-ml = "*"
+dask-expr = "^0.4.2"
+isort = "^5.13.2"
 
 
 [build-system]
