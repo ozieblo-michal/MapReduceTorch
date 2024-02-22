@@ -3,12 +3,14 @@ import os
 from PIL import Image
 from torchvision import transforms
 
+
 class DogHotdogClassificationDataset(Dataset):
     """
     A custom dataset class for dog vs hotdog image classification, inheriting from PyTorch's Dataset class.
     This class handles loading images from a directory, applying transformations, and providing
     PyTorch tensors for training or inference.
     """
+
     def __init__(self):
         # Initialize the parent Dataset class to leverage built-in functionalities
         super().__init__()
@@ -37,9 +39,14 @@ class DogHotdogClassificationDataset(Dataset):
             # List all images in the class directory
             example_img_fps = os.listdir(os.path.join("classes", class_name))
             # Prepend the directory path to image file names
-            example_img_fps = [os.path.join("classes", class_name, img_name) for img_name in example_img_fps]
+            example_img_fps = [
+                os.path.join("classes", class_name, img_name)
+                for img_name in example_img_fps
+            ]
             # Pair each image file path with its label
-            example_tuples = [(img_fp, class_to_idx[class_name]) for img_fp in example_img_fps]
+            example_tuples = [
+                (img_fp, class_to_idx[class_name]) for img_fp in example_img_fps
+            ]
             examples.extend(example_tuples)
 
         return examples

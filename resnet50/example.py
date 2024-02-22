@@ -13,17 +13,19 @@ from torch.utils.data import DataLoader
 from doghotdogclassificationdataset import DogHotdogClassificationDataset
 
 # Suppress warnings to make the output cleaner, especially useful when running in a notebook or a production environment
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 
 # Determine if a CUDA GPU is available and use it; otherwise, default to CPU for computation. This optimizes for performance.
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f'Using {device} for inference')
+print(f"Using {device} for inference")
+
 
 class DogHotdogClassifier(torch.nn.Module):
     """
     A classifier that uses a pretrained ResNet50 model to distinguish between images of dogs and hotdogs.
     The model's final fully connected layer is replaced to adapt to the binary classification task.
     """
+
     def __init__(self):
         # The super() method is used here to call the __init__ method of the parent class (torch.nn.Module),
         # allowing us to use its functionalities and ensure the class is correctly initialized.
@@ -31,23 +33,24 @@ class DogHotdogClassifier(torch.nn.Module):
         # Load a pretrained ResNet50 model from NVIDIA's torchhub repository. This model is chosen for its
         # effectiveness in image classification tasks. The pretrained model comes with weights trained on a
         # large dataset, providing a strong feature extractor as a starting point for our classification task.
-        self.resnet50 = torch.hub.load('NVIDIA/DeepLearningExamples:torchhub', 'nvidia_resnet50', pretrained=True)
+        self.resnet50 = torch.hub.load(
+            "NVIDIA/DeepLearningExamples:torchhub", "nvidia_resnet50", pretrained=True
+        )
         # Replace the final fully connected layer of ResNet50 to adapt it from 1000 classes to a single output
         # neuron, since we're dealing with a binary classification problem (dog vs hotdog). This is a common
         # practice when fine-tuning pretrained models for new tasks.
         self.resnet50.fc = torch.nn.Linear(2048, 1)
-    
+
     def forward(self, X):
         # Apply a sigmoid activation function to the output of the modified ResNet50 model to obtain a probability
         # score between 0 and 1, indicating the likelihood of the input image being a hotdog.
         return torch.sigmoid(self.resnet50(X))
 
-    
 
 def train(model, dataloader, epochs=20):
     """
     Trains the model on the dataset wrapped by the DataLoader for a specified number of epochs.
-    
+
     Args:
         model: The neural network model to be trained.
         dataloader: DataLoader that provides batches of data from the training dataset.
@@ -88,24 +91,29 @@ def accuracy(model, dataset, dataloader, show_image=True):
         # Count number of correct predictions
         correct = torch.round(predictions.squeeze()) == labels
         n_correct += correct.sum().item()
-    
+
     # Calculate and print accuracy
     accuracy = 100 * n_correct / m
     print(f"Accuracy: {accuracy:.2f} %")
-    
+
     if show_image:
         # Display an image from the last batch
         img, label = features[-1].cpu(), labels[-1].cpu()
         predicted_label = torch.round(predictions[-1]).int().item()
-        img = img.numpy().transpose((1, 2, 0))  # Convert image to NumPy array and change order from CxHxW to HxWxC
-        
+        img = img.numpy().transpose(
+            (1, 2, 0)
+        )  # Convert image to NumPy array and change order from CxHxW to HxWxC
+
         # Display the image
         plt.imshow(img)
-        plt.title(f'Label: {label.item()}, Predicted: {predicted_label}')
+        plt.title(f"Label: {label.item()}, Predicted: {predicted_label}")
         plt.show()
-        
+
         # Print label and prediction
-        label_dict = {0: "Not Hotdog", 1: "Hotdog"}  # Update this dictionary based on your dataset labels
+        label_dict = {
+            0: "Not Hotdog",
+            1: "Hotdog",
+        }  # Update this dictionary based on your dataset labels
         print(f"Actual Label: {label_dict[label.item()]}")
         print(f"Predicted Label: {label_dict[predicted_label]}")
 
@@ -113,7 +121,7 @@ def accuracy(model, dataset, dataloader, show_image=True):
 # Ensure the rest of your script remains unchanged
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Instantiate the classifier and dataset, then calculate initial accuracy, train, and recalculate accuracy
     classifier = DogHotdogClassifier().to(device)
     dataset = DogHotdogClassificationDataset()

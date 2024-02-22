@@ -43,9 +43,7 @@ print("Evaluation results:", evaluation_result)
 
 fill_mask_pipeline = pipeline("fill-mask", model=model, tokenizer=tokenizer)
 
-examples = [
-   "sentence1 [MASK]", "sentence2 [MASK]"
-]
+examples = ["sentence1 [MASK]", "sentence2 [MASK]"]
 
 for example in examples:
     predictions = fill_mask_pipeline(example)

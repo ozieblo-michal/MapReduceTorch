@@ -7,6 +7,7 @@ from datasets import Dataset
 import torch
 import numpy as np
 
+
 def download_nltk_resource(resource_name: str, download_dir: str = None):
     """
     Checks if an NLTK resource is available locally; if not, downloads it.
@@ -20,10 +21,12 @@ def download_nltk_resource(resource_name: str, download_dir: str = None):
         # Attempt to find the resource. If found, this does nothing.
         nltk.data.find(resource_name)
     except LookupError:
-        nltk.download(resource_name.split('/')[1], download_dir=download_dir)
+        nltk.download(resource_name.split("/")[1], download_dir=download_dir)
+
 
 # Download necessary NLTK resources for finding synonyms
-download_nltk_resource('corpora/wordnet')
+download_nltk_resource("corpora/wordnet")
+
 
 def get_synonyms(word: str) -> list[str]:
     """
@@ -43,6 +46,7 @@ def get_synonyms(word: str) -> list[str]:
     if word in synonyms:
         synonyms.remove(word)
     return list(synonyms)
+
 
 def synonym_replacement(sentence: str, n: int = 1) -> str:
     """
@@ -72,6 +76,7 @@ def synonym_replacement(sentence: str, n: int = 1) -> str:
     sentence = " ".join(new_words)
     return sentence
 
+
 def augment_example(example: dict, augment_rate: float = 0.1, n: int = 1) -> dict:
     """
     Augments a text example by replacing up to 'n' words with synonyms based on a given augmentation rate.
@@ -91,7 +96,9 @@ def augment_example(example: dict, augment_rate: float = 0.1, n: int = 1) -> dic
     )
     return {"text": augmented_text}
 
+
 spark = SparkSession.builder.appName("DistilBERT Training").getOrCreate()
+
 
 def filter_sentences_by_token_limit(
     input_file_path: str, output_file_path: str, max_tokens: int = 512
@@ -112,6 +119,7 @@ def filter_sentences_by_token_limit(
             tokens = tokenizer.tokenize(line)
             if len(tokens) <= max_tokens:
                 output_file.write(line)
+
 
 input_file_path = (
     "/Users/michalozieblo/Desktop/mapreducetorch/scraper/output/output.txt"
@@ -141,13 +149,24 @@ new_special_tokens = ["CUDA", "GPU", "CPU", "DQP"]
 tokenizer.add_tokens(new_special_tokens)
 
 
+tokens = tokenizer.encode_plus(
+    "The quick brown fox jumps over the lazy dog",
+    max_length=512,
+    padding="max_length",
+    truncation=True,
+    return_tensors="pt",
+)
 
-tokens = tokenizer.encode_plus("The quick brown fox jumps over the lazy dog", max_length=512, padding='max_length', truncation=True, return_tensors='pt')
+input_ids = tokens["input_ids"]
+attention_mask = tokens["attention_mask"]
 
-input_ids = tokens['input_ids']
-attention_mask = tokens['attention_mask']
 
-def improved_masking(input_ids: torch.Tensor, attention_mask: torch.Tensor, tokenizer: DistilBertTokenizer, mask_probability: float = 0.15) -> (torch.Tensor, torch.Tensor, torch.Tensor):
+def improved_masking(
+    input_ids: torch.Tensor,
+    attention_mask: torch.Tensor,
+    tokenizer: DistilBertTokenizer,
+    mask_probability: float = 0.15,
+) -> (torch.Tensor, torch.Tensor, torch.Tensor):
     """
     Applies an improved masking strategy to input_ids based on mask_probability.
 
@@ -161,23 +180,32 @@ def improved_masking(input_ids: torch.Tensor, attention_mask: torch.Tensor, toke
     - Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: Modified input_ids, unchanged attention_mask, and labels for training.
     """
     labels = input_ids.clone()
-    candidates = (input_ids != tokenizer.cls_token_id) & \
-                 (input_ids != tokenizer.sep_token_id) & \
-                 (input_ids != tokenizer.pad_token_id) & \
-                 (torch.rand(input_ids.shape) < mask_probability)
+    candidates = (
+        (input_ids != tokenizer.cls_token_id)
+        & (input_ids != tokenizer.sep_token_id)
+        & (input_ids != tokenizer.pad_token_id)
+        & (torch.rand(input_ids.shape) < mask_probability)
+    )
 
     selection = torch.where(candidates)
     for i in range(selection[0].size(0)):
-        random_action = np.random.choice(["mask", "random_token", "unchanged"], p=[0.8, 0.1, 0.1])
+        random_action = np.random.choice(
+            ["mask", "random_token", "unchanged"], p=[0.8, 0.1, 0.1]
+        )
         if random_action == "mask":
             input_ids[selection[0][i], selection[1][i]] = tokenizer.mask_token_id
         elif random_action == "random_token":
-            input_ids[selection[0][i], selection[1][i]] = torch.randint(0, len(tokenizer), size=(1,))
+            input_ids[selection[0][i], selection[1][i]] = torch.randint(
+                0, len(tokenizer), size=(1,)
+            )
 
     labels[~candidates] = -100
     return input_ids, attention_mask, labels
 
-input_ids, attention_mask, labels = improved_masking(input_ids, attention_mask, tokenizer)
+
+input_ids, attention_mask, labels = improved_masking(
+    input_ids, attention_mask, tokenizer
+)
 
 print("Input IDs:", input_ids)
 print("Labels:", labels)
@@ -193,14 +221,25 @@ def tokenize_and_mask_function(examples: dict) -> dict:
     Returns:
     - dict: Dictionary containing modified input_ids, attention_mask, and labels for training.
     """
-    inputs = tokenizer(examples["text"], padding="max_length", truncation=True, max_length=512, return_tensors="pt")
-    input_ids, attention_mask, labels = improved_masking(inputs['input_ids'], inputs['attention_mask'], tokenizer)
-    inputs['input_ids'] = input_ids
-    inputs['attention_mask'] = attention_mask
-    inputs['labels'] = labels
+    inputs = tokenizer(
+        examples["text"],
+        padding="max_length",
+        truncation=True,
+        max_length=512,
+        return_tensors="pt",
+    )
+    input_ids, attention_mask, labels = improved_masking(
+        inputs["input_ids"], inputs["attention_mask"], tokenizer
+    )
+    inputs["input_ids"] = input_ids
+    inputs["attention_mask"] = attention_mask
+    inputs["labels"] = labels
     return inputs
 
-data = {'text': ["The quick brown fox jumps over the lazy dog", "I love machine learning"]}
+
+data = {
+    "text": ["The quick brown fox jumps over the lazy dog", "I love machine learning"]
+}
 dataset = Dataset.from_dict(data)
 
 tokenized_dataset = dataset.map(tokenize_and_mask_function, batched=True)
@@ -214,5 +253,9 @@ eval_dataset = eval_augmented_data.map(tokenize_and_mask_function, batched=True)
 train_dataset = train_dataset.to_pandas()
 eval_dataset = eval_dataset.to_pandas()
 
-train_dataset.to_parquet('/Users/michalozieblo/Desktop/mapreducetorch/dask/augmented_parquet/train.parquet')
-eval_dataset.to_parquet('/Users/michalozieblo/Desktop/mapreducetorch/dask/augmented_parquet/eval.parquet')
+train_dataset.to_parquet(
+    "/Users/michalozieblo/Desktop/book2flash/training/augmented_parquet/train.parquet"
+)
+eval_dataset.to_parquet(
+    "/Users/michalozieblo/Desktop/book2flash/training/augmented_parquet/eval.parquet"
+)

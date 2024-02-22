@@ -122,10 +122,10 @@ def filter_sentences_by_token_limit(
 
 
 input_file_path = (
-    "/Users/michalozieblo/Desktop/mapreducetorch/scraper/output/output.txt"
+    "/Users/michalozieblo/Desktop/book2flash//scraper/output/output.txt"
 )
 output_file_path = (
-    "/Users/michalozieblo/Desktop/mapreducetorch/scraper/output/filtered_output"
+    "/Users/michalozieblo/Desktop/book2flash//scraper/output/filtered_output"
 )
 
 filter_sentences_by_token_limit(input_file_path, output_file_path)
@@ -165,7 +165,7 @@ def improved_masking(
     attention_mask: torch.Tensor,
     tokenizer: DistilBertTokenizer,
     mask_probability: float = 0.15,
-) -> (torch.Tensor, torch.Tensor, torch.Tensor):
+):
     """
     Applies an improved masking strategy to input_ids based on mask_probability.
 
@@ -247,8 +247,8 @@ train_dataset = train_dataset.to_pandas()
 eval_dataset = eval_dataset.to_pandas()
 
 train_dataset.to_parquet(
-    "/Users/michalozieblo/Desktop/mapreducetorch/training/augmented_parquet/train.parquet"
+    "/Users/michalozieblo/Desktop/book2flash/training/augmented_parquet/train.parquet"
 )
 eval_dataset.to_parquet(
-    "/Users/michalozieblo/Desktop/mapreducetorch/training/augmented_parquet/eval.parquet"
+    "/Users/michalozieblo/Desktop/book2flash/training/augmented_parquet/eval.parquet"
 )

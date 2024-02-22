@@ -15,13 +15,12 @@ import ast
 
 
 import dask
-dask.config.set({'dataframe.query-planning': True})
+
+dask.config.set({"dataframe.query-planning": True})
 import dask.dataframe as dd
 
 
 from dask.distributed import Client
-
-
 
 
 class CustomDataset(Dataset):
@@ -40,8 +39,6 @@ class CustomDataset(Dataset):
         """Returns the length of the dataset."""
         return len(self.ddf)
 
-    
-
     def __getitem__(self, idx: int) -> dict:
         """
         Retrieves an item by index.
@@ -52,7 +49,7 @@ class CustomDataset(Dataset):
         Returns:
         - dict: A dictionary containing input_ids, attention_mask, optional labels, and token_type_ids tensors.
         """
-        
+
         row = self.ddf.iloc[idx]
         input_ids = torch.tensor(row["input_ids"], dtype=torch.long)
         attention_mask = torch.tensor(row["attention_mask"], dtype=torch.long)
@@ -87,7 +84,7 @@ def model_training_function(trial: optuna.Trial) -> float:
     new_special_tokens = ["CUDA", "GPU", "CPU", "DQP"]
     tokenizer.add_tokens(new_special_tokens)
 
-    num_train_epochs = trial.suggest_int("num_train_epochs", 1, 5)
+    num_train_epochs = trial.suggest_int("num_train_epochs", 1, 3)
     learning_rate = trial.suggest_float("learning_rate", 5e-5, 5e-4)
 
     model = DistilBertForMaskedLM.from_pretrained("distilbert-base-uncased")
@@ -122,10 +119,10 @@ if __name__ == "__main__":
     client = Client()
 
     train_ddf = dd.read_parquet(
-        "/Users/michalozieblo/Desktop/mapreducetorch/training/augmented_parquet/train.parquet"
+        "/Users/michalozieblo/Desktop/book2flash/training/augmented_parquet/train.parquet"
     )
     eval_ddf = dd.read_parquet(
-        "/Users/michalozieblo/Desktop/mapreducetorch/training/augmented_parquet/eval.parquet"
+        "/Users/michalozieblo/Desktop/book2flash/training/augmented_parquet/eval.parquet"
     )
 
     train_dataset = CustomDataset(train_ddf)
@@ -140,5 +137,5 @@ if __name__ == "__main__":
     best_trial = study.best_trial
     print(f"Best trial: {best_trial.number} with loss {best_trial.value}")
 
-    best_model_path = f"./best_model_trial_{best_trial.number}"
+    best_model_path = f"./results_trial_{best_trial.number}"
     model = DistilBertForMaskedLM.from_pretrained(best_model_path)

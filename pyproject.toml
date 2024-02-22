@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "mapreducetorch"
+name = "book2flash"
 version = "0.1.0"
 description = "Terraform setup for AWS EMR for model processing based on transfer learning in PyTorch"
 authors = ["ozieblo <59211762+ozieblo-michal@users.noreply.github.com>"]
