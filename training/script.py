@@ -23,6 +23,10 @@ import dask.dataframe as dd
 from dask.distributed import Client
 
 
+TRAIN_PARQUET_DATA = "./training/augmented_parquet/train.parquet"
+EVAL_PARQUAT_DATA = "./training/augmented_parquet/eval.parquet"
+
+
 class CustomDataset(Dataset):
     """A custom PyTorch Dataset to load Dask DataFrames for language modeling."""
 
@@ -96,6 +100,7 @@ def model_training_function(trial: optuna.Trial) -> float:
         per_device_train_batch_size=8,
         learning_rate=learning_rate,
         logging_dir="./logs",
+        save_steps=10,
     )
 
     trainer = Trainer(
@@ -114,15 +119,30 @@ def model_training_function(trial: optuna.Trial) -> float:
     return eval_results["eval_loss"]
 
 
+def find_latest_checkpoint(base_path):
+    checkpoint_dirs = [d for d in os.listdir(base_path) if d.startswith('checkpoint')]
+    latest_checkpoint = None
+    latest_time = 0
+    
+    for checkpoint_dir in checkpoint_dirs:
+        full_path = os.path.join(base_path, checkpoint_dir)
+        stat = os.stat(full_path)
+        if stat.st_mtime > latest_time:
+            latest_checkpoint = checkpoint_dir
+            latest_time = stat.st_mtime
+            
+    return latest_checkpoint
+
+
 if __name__ == "__main__":
 
     client = Client()
 
     train_ddf = dd.read_parquet(
-        "/Users/michalozieblo/Desktop/book2flash/training/augmented_parquet/train.parquet"
+        TRAIN_PARQUET_DATA
     )
     eval_ddf = dd.read_parquet(
-        "/Users/michalozieblo/Desktop/book2flash/training/augmented_parquet/eval.parquet"
+        EVAL_PARQUAT_DATA
     )
 
     train_dataset = CustomDataset(train_ddf)
@@ -132,10 +152,19 @@ if __name__ == "__main__":
     eval_loader = DataLoader(eval_dataset, batch_size=16, shuffle=True, num_workers=0)
 
     study = optuna.create_study(direction="minimize")
-    study.optimize(model_training_function, n_trials=3)
+    study.optimize(model_training_function, n_trials=2)
 
     best_trial = study.best_trial
     print(f"Best trial: {best_trial.number} with loss {best_trial.value}")
 
     best_model_path = f"./results_trial_{best_trial.number}"
-    model = DistilBertForMaskedLM.from_pretrained(best_model_path)
+    
+    latest_checkpoint_dir = find_latest_checkpoint(best_model_path)
+
+    if latest_checkpoint_dir:
+        print(f"Latest checkpoint directory: {latest_checkpoint_dir}")
+        print(f"Model path: {best_model_path}")
+        model_path = os.path.join(best_model_path, latest_checkpoint_dir)
+        model = DistilBertForMaskedLM.from_pretrained(model_path)
+    else:
+        print("No checkpoint directories found.")

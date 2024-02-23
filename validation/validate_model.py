@@ -7,9 +7,35 @@ from transformers import (
 )
 from datasets import load_dataset
 
-model_path = "./best_model_trial_2"
+import os
 
-model = DistilBertForMaskedLM.from_pretrained(model_path)
+BEST_MODEL_PATH = "./training/results_trial_1"
+
+def find_latest_checkpoint(base_path):
+    checkpoint_dirs = [d for d in os.listdir(base_path) if d.startswith('checkpoint')]
+    latest_checkpoint = None
+    latest_time = 0
+    
+    for checkpoint_dir in checkpoint_dirs:
+        full_path = os.path.join(base_path, checkpoint_dir)
+        stat = os.stat(full_path)
+        if stat.st_mtime > latest_time:
+            latest_checkpoint = checkpoint_dir
+            latest_time = stat.st_mtime
+            
+    return latest_checkpoint
+
+
+latest_checkpoint_dir = find_latest_checkpoint(BEST_MODEL_PATH)
+
+if latest_checkpoint_dir:
+    print(f"Latest checkpoint directory: {latest_checkpoint_dir}")
+    print(f"Model path: {BEST_MODEL_PATH}")
+    model_path = os.path.join(BEST_MODEL_PATH, latest_checkpoint_dir)
+    model = DistilBertForMaskedLM.from_pretrained(model_path)
+else:
+    print("No checkpoint directories found.")
+
 tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
 
 

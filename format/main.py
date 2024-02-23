@@ -7,6 +7,11 @@ from datasets import Dataset
 import torch
 import numpy as np
 
+INPUT_TEXT_FILE_PATH = "./scraper/output/output.txt"
+FILTERED_OUTPUT_FILE_PATH = "./scraper/output/filtered_output.txt"
+TRAIN_DATASET_PARQUET_PATH = "./training/augmented_parquet/train.parquet"
+EVAL_DATASET_PARQUET_PATH = "./training/augmented_parquet/eval.parquet"
+
 
 def download_nltk_resource(resource_name: str, download_dir: str = None):
     """
@@ -121,11 +126,13 @@ def filter_sentences_by_token_limit(
                 output_file.write(line)
 
 
+
+
 input_file_path = (
-    "/Users/michalozieblo/Desktop/book2flash//scraper/output/output.txt"
+    INPUT_TEXT_FILE_PATH
 )
 output_file_path = (
-    "/Users/michalozieblo/Desktop/book2flash//scraper/output/filtered_output"
+    FILTERED_OUTPUT_FILE_PATH
 )
 
 filter_sentences_by_token_limit(input_file_path, output_file_path)
@@ -247,8 +254,8 @@ train_dataset = train_dataset.to_pandas()
 eval_dataset = eval_dataset.to_pandas()
 
 train_dataset.to_parquet(
-    "/Users/michalozieblo/Desktop/book2flash/training/augmented_parquet/train.parquet"
+    TRAIN_DATASET_PARQUET_PATH
 )
 eval_dataset.to_parquet(
-    "/Users/michalozieblo/Desktop/book2flash/training/augmented_parquet/eval.parquet"
+    EVAL_DATASET_PARQUET_PATH
 )

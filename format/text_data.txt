@@ -1,5 +1,0 @@
-Fault Tolerance is another good driver for granularity disintegration.
-Key-value databases are easiest to understand among the NoSQL databases.
-Relational databases organize data into tables and rows.
-Strict contracts have a few disadvantages like tight coupling.
-Data mesh is an outstanding example of the constant incremental evolution that occurs in the software development ecosystem.
