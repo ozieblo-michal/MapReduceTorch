@@ -102,7 +102,7 @@ def augment_example(example: dict, augment_rate: float = 0.1, n: int = 1) -> dic
     return {"text": augmented_text}
 
 
-spark = SparkSession.builder.appName("DistilBERT Training").getOrCreate()
+
 
 
 def filter_sentences_by_token_limit(
@@ -124,47 +124,6 @@ def filter_sentences_by_token_limit(
             tokens = tokenizer.tokenize(line)
             if len(tokens) <= max_tokens:
                 output_file.write(line)
-
-
-
-
-input_file_path = (
-    INPUT_TEXT_FILE_PATH
-)
-output_file_path = (
-    FILTERED_OUTPUT_FILE_PATH
-)
-
-filter_sentences_by_token_limit(input_file_path, output_file_path)
-
-data = spark.read.text(output_file_path).rdd.map(lambda r: r[0]).collect()
-data = Dataset.from_dict({"text": data})
-
-train_data, eval_data = data.train_test_split(test_size=0.1).values()
-
-train_augmented_data = train_data.map(
-    lambda example: augment_example(example, augment_rate=0.3, n=2)
-)
-eval_augmented_data = eval_data.map(
-    lambda example: augment_example(example, augment_rate=0.3, n=2)
-)
-
-tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
-
-new_special_tokens = ["CUDA", "GPU", "CPU", "DQP"]
-
-tokenizer.add_tokens(new_special_tokens)
-
-tokens = tokenizer.encode_plus(
-    "The quick brown fox jumps over the lazy dog",
-    max_length=512,
-    padding="max_length",
-    truncation=True,
-    return_tensors="pt",
-)
-
-input_ids = tokens["input_ids"]
-attention_mask = tokens["attention_mask"]
 
 
 def improved_masking(
@@ -209,10 +168,6 @@ def improved_masking(
     return input_ids, attention_mask, labels
 
 
-input_ids, attention_mask, labels = improved_masking(
-    input_ids, attention_mask, tokenizer
-)
-
 
 def tokenize_and_mask_function(examples: dict) -> dict:
     """
@@ -240,22 +195,46 @@ def tokenize_and_mask_function(examples: dict) -> dict:
     return inputs
 
 
-data = {
-    "text": ["The quick brown fox jumps over the lazy dog", "I love machine learning"]
-}
-dataset = Dataset.from_dict(data)
+def full_data_preparation_and_augmentation(input_file_path, filtered_output_file_path, train_dataset_parquet_path, eval_dataset_parquet_path, augment_rate, n):
 
-tokenized_dataset = dataset.map(tokenize_and_mask_function, batched=True)
+    spark = SparkSession.builder.appName("DistilBERT Training").getOrCreate()
 
-train_dataset = train_augmented_data.map(tokenize_and_mask_function, batched=True)
-eval_dataset = eval_augmented_data.map(tokenize_and_mask_function, batched=True)
+    filter_sentences_by_token_limit(input_file_path, filtered_output_file_path)
+    data = spark.read.text(filtered_output_file_path).rdd.map(lambda r: r[0]).collect()
 
-train_dataset = train_dataset.to_pandas()
-eval_dataset = eval_dataset.to_pandas()
+    data = Dataset.from_dict({"text": data})
+    train_data, eval_data = data.train_test_split(test_size=0.1).values()
 
-train_dataset.to_parquet(
-    TRAIN_DATASET_PARQUET_PATH
-)
-eval_dataset.to_parquet(
-    EVAL_DATASET_PARQUET_PATH
-)
+    def augment_data(dataset):
+        return dataset.map(lambda example: augment_example(example, augment_rate=augment_rate, n=n))
+
+    train_augmented_data = augment_data(train_data)
+    eval_augmented_data = augment_data(eval_data)
+
+    tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
+    tokenizer.add_tokens(["CUDA", "GPU", "CPU", "DQP"])
+
+    def tokenize_and_mask_function(examples):
+        return tokenizer(examples["text"], max_length=512, padding="max_length", truncation=True)
+
+    train_dataset = train_augmented_data.map(tokenize_and_mask_function, batched=True)
+    eval_dataset = eval_augmented_data.map(tokenize_and_mask_function, batched=True)
+
+    train_dataset.set_format(type='pandas').to_pandas().to_parquet(train_dataset_parquet_path)
+    eval_dataset.set_format(type='pandas').to_pandas().to_parquet(eval_dataset_parquet_path)
+
+if __name__ == "__main__":
+
+    full_data_preparation_and_augmentation(
+        input_file_path=INPUT_TEXT_FILE_PATH,
+        filtered_output_file_path=FILTERED_OUTPUT_FILE_PATH,
+        train_dataset_parquet_path=TRAIN_DATASET_PARQUET_PATH,
+        eval_dataset_parquet_path=EVAL_DATASET_PARQUET_PATH,
+        augment_rate=0.3,
+        n=2
+    )
+
+
+
+
+
