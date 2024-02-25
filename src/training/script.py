@@ -134,9 +134,8 @@ def find_latest_checkpoint(base_path):
     return latest_checkpoint
 
 
-if __name__ == "__main__":
 
-    client = Client()
+def run_training_and_evaluation(TRAIN_PARQUET_DATA, EVAL_PARQUAT_DATA):
 
     train_ddf = dd.read_parquet(
         TRAIN_PARQUET_DATA
@@ -166,5 +165,19 @@ if __name__ == "__main__":
         print(f"Model path: {best_model_path}")
         model_path = os.path.join(best_model_path, latest_checkpoint_dir)
         model = DistilBertForMaskedLM.from_pretrained(model_path)
+        return model
     else:
         print("No checkpoint directories found.")
+
+
+
+
+if __name__ == "__main__":
+
+    client = Client()
+
+    model = run_training_and_evaluation(TRAIN_PARQUET_DATA, EVAL_PARQUAT_DATA)
+
+
+
+

@@ -1,5 +1,7 @@
 from scraper.main import convert_to_txt
 from format.main import full_data_preparation_and_augmentation
+from training.script import run_training_and_evaluation
+from dask.distributed import Client
 
 input_file_path = "./book2flash/src/files/source_text/input_text.epub"
 output_file_path = "./book2flash/src/files/source_text/scrapped_text.txt"
@@ -20,8 +22,6 @@ full_data_preparation_and_augmentation(
         n=2
     )
 
+client = Client()
 
-
-# train
-
-# validate
+model = run_training_and_evaluation(train_dataset_parquet_path, eval_dataset_parquet_path)
