@@ -1,13 +1,13 @@
 resource "aws_emr_cluster" "dask_cluster" {
   name          = "dask-emr-cluster"
   release_label = "emr-6.2.0"
-  applications  = ["Hadoop", "Spark", "Livy", "JupyterHub", "Hue"]
+  applications  = ["Hadoop", "Spark"]
 
   ec2_attributes {
-    subnet_id                         = "your_subnet_id"
-    emr_managed_master_security_group = "your_master_security_group_id"
-    emr_managed_slave_security_group  = "your_slave_security_group_id"
-    instance_profile                  = "EMR_EC2_DefaultRole"
+    subnet_id                         = aws_subnet.emr_subnet.id
+    emr_managed_master_security_group = aws_security_group.emr_master_sg.id
+    emr_managed_slave_security_group  = aws_security_group.emr_slave_sg.id
+    instance_profile                  = aws_iam_instance_profile.emr_ec2_instance_profile.name
   }
 
   service_role = "EMR_DefaultRole"
@@ -24,7 +24,7 @@ resource "aws_emr_cluster" "dask_cluster" {
   }
 
   tags = {
-    for = "Dask Processing"
+    "Purpose" = "Dask Processing"
   }
 }
 
