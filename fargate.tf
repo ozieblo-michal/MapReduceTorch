@@ -40,7 +40,7 @@ resource "aws_ecs_task_definition" "data_formatting_task" {
       cpu       = 256,
       memory    = 512,
       essential = true,
-      command   = ["python", "run_formatting.py"],
+      command = ["poetry", "run", "python", "src/main.py"],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {

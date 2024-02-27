@@ -22,6 +22,6 @@ full_data_preparation_and_augmentation(
         n=2
     )
 
-client = Client()
+# client = Client()
 
-model = run_training_and_evaluation(train_dataset_parquet_path, eval_dataset_parquet_path)
+# model = run_training_and_evaluation(train_dataset_parquet_path, eval_dataset_parquet_path)
