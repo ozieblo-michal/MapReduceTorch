@@ -11,9 +11,9 @@ resource "aws_s3_bucket_object" "dask_bootstrap_script" {
   bucket = aws_s3_bucket.bootstrap_bucket.bucket
   key    = "dask_bootstrap.sh"
   content = <<EOF
-#!/bin/bash
-sudo pip install dask[complete] distributed --upgrade
-EOF
+            #!/bin/bash
+            sudo pip install dask[complete] distributed --upgrade
+            EOF
   acl    = "private"
 }
 
@@ -48,9 +48,10 @@ resource "aws_emr_cluster" "dask_cluster" {
   }
 
   bootstrap_action {
-    path = "s3://${aws_s3_bucket.bootstrap_bucket.bucket}/dask_bootstrap.sh"
+    path = "s3://${aws_s3_bucket.shared_bucket.bucket}/dask_bootstrap.sh"
     name = "Dask Bootstrap Action"
   }
+
 }
 
 resource "aws_iam_role" "emr_default_role" {

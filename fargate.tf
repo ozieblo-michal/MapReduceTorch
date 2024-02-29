@@ -34,23 +34,25 @@ resource "aws_ecs_task_definition" "data_formatting_task" {
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
 
   container_definitions = jsonencode([
-    {
-      name      = "data-formatting-container",
-      image     = "your_ecr_repository_uri/your_image:tag",
-      cpu       = 256,
-      memory    = 512,
-      essential = true,
-      command = ["poetry", "run", "python", "src/main.py"],
-      "logConfiguration": {
-        "logDriver": "awslogs",
-        "options": {
-          "awslogs-group": "/ecs/data-formatting-task",
-          "awslogs-region": "your_aws_region",
-          "awslogs-stream-prefix": "ecs"
-        }
+  {
+    name      = "data-formatting-container",
+    image     = "your_ecr_repository_uri/your_image:tag",
+    cpu       = 256,
+    memory    = 512,
+    essential = true,
+    command   = ["poetry", "run", "python", "src/main.py"],
+    logConfiguration = {
+      logDriver = "awslogs",
+      options = {
+        "awslogs-group"         = "/ecs/data-formatting-task",
+        "awslogs-region"        = var.aws_region,
+        "awslogs-stream-prefix" = "ecs",
+        "s3_bucket_name"        = "${aws_s3_bucket.shared_bucket.bucket}"
       }
     }
-  ])
+  }
+])
+
 }
 
 resource "aws_ecs_service" "data_formatting_service" {
