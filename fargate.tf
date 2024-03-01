@@ -18,6 +18,12 @@ resource "aws_iam_role" "ecs_task_execution_role" {
       },
     ]
   })
+
+  tags = {
+    Environment = "Development"
+    Project     = "Data Formatting"
+  }
+
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy_attachment" {
@@ -41,6 +47,12 @@ resource "aws_ecs_task_definition" "data_formatting_task" {
     memory    = 512,
     essential = true,
     command   = ["poetry", "run", "python", "src/main.py"],
+    environment = [
+        {
+          name  = "S3_BUCKET_PATH",
+          value = "s3://shared-bucket-for-emr-and-fargate/processed-data/"
+        }
+      ],
     logConfiguration = {
       logDriver = "awslogs",
       options = {
@@ -65,6 +77,6 @@ resource "aws_ecs_service" "data_formatting_service" {
   network_configuration {
     subnets         = [aws_subnet.emr_subnet.id]
     security_groups = [aws_security_group.emr_master_sg.id, aws_security_group.emr_slave_sg.id]
-    assign_public_ip = true
+    assign_public_ip = false
   }
 }

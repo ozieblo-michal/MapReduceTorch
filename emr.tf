@@ -2,10 +2,19 @@ resource "aws_s3_bucket" "bootstrap_bucket" {
   bucket = "ozieblo-michal-bootstrap-scripts"
   acl    = "private"
 
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
+    }
+  }
+
   tags = {
     Purpose = "Bootstrap Scripts"
   }
 }
+
 
 resource "aws_s3_bucket_object" "dask_bootstrap_script" {
   bucket = aws_s3_bucket.bootstrap_bucket.bucket
@@ -38,13 +47,20 @@ resource "aws_emr_cluster" "dask_cluster" {
     instance_count = 1
   }
 
+
+
   core_instance_group {
-    instance_type  = "m5.xlarge"
+    instance_type  = "m5.large"
     instance_count = 2
+    bid_price      = "0.067"
+    market         = "SPOT"
   }
 
+
   tags = {
-    "Purpose" = "Dask Processing"
+    "Purpose"     = "Dask Processing"
+    "Environment" = "Development"
+    "Project"     = "LLM Training"
   }
 
   bootstrap_action {
