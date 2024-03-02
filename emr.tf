@@ -26,19 +26,18 @@ resource "aws_emr_cluster" "dask_cluster" {
   autoscaling_role = aws_iam_role.emr_autoscaling_default_role.arn
 
   master_instance_group {
-    instance_type  = "m5.xlarge"
-    instance_count = 1
+    instance_type = "m5.xlarge"
   }
-
-
 
   core_instance_group {
-    instance_type  = "m5.large"
+    instance_type = "m5.xlarge"
     instance_count = 2
-    bid_price      = "0.067"
-    market         = "SPOT"
+    ebs_config {
+      size = 64
+      type = "gp2"
+      volumes_per_instance = 1
+    }
   }
-
 
   tags = {
     "Purpose"     = "Dask Processing"
@@ -47,12 +46,28 @@ resource "aws_emr_cluster" "dask_cluster" {
   }
 
   bootstrap_action {
-  path = "s3://${aws_s3_bucket.shared_bucket.bucket}/bootstrap-scripts/dask_bootstrap.sh"
-  name = "Dask Bootstrap Action"
+    path = "s3://${aws_s3_bucket.shared_bucket.bucket}/bootstrap-scripts/dask_bootstrap.sh"
+    name = "Dask Bootstrap Action"
+  }
+}
+
+resource "aws_emr_instance_group" "dask_cluster_spot" {
+  cluster_id   = aws_emr_cluster.dask_cluster.id
+  instance_type = "m5.2xlarge"
+  instance_count = 3
+  bid_price = "0.30" 
+
+  ebs_config {
+    size = 128
+    type = "gp2"
+    volumes_per_instance = 1
+  }
 }
 
 
-}
+
+
+
 
 resource "aws_iam_role" "emr_default_role" {
   name = "EMR_DefaultRole"
