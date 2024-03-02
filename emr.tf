@@ -1,30 +1,13 @@
-resource "aws_s3_bucket" "bootstrap_bucket" {
-  bucket = "ozieblo-michal-bootstrap-scripts"
-  acl    = "private"
-
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        sse_algorithm = "AES256"
-      }
-    }
-  }
-
-  tags = {
-    Purpose = "Bootstrap Scripts"
-  }
-}
-
-
 resource "aws_s3_bucket_object" "dask_bootstrap_script" {
-  bucket = aws_s3_bucket.bootstrap_bucket.bucket
-  key    = "dask_bootstrap.sh"
+  bucket  = aws_s3_bucket.shared_bucket.bucket
+  key     = "bootstrap-scripts/dask_bootstrap.sh"
   content = <<EOF
             #!/bin/bash
             sudo pip install dask[complete] distributed --upgrade
             EOF
-  acl    = "private"
+  acl     = "private"
 }
+
 
 
 resource "aws_emr_cluster" "dask_cluster" {
@@ -64,9 +47,10 @@ resource "aws_emr_cluster" "dask_cluster" {
   }
 
   bootstrap_action {
-    path = "s3://${aws_s3_bucket.shared_bucket.bucket}/dask_bootstrap.sh"
-    name = "Dask Bootstrap Action"
-  }
+  path = "s3://${aws_s3_bucket.shared_bucket.bucket}/bootstrap-scripts/dask_bootstrap.sh"
+  name = "Dask Bootstrap Action"
+}
+
 
 }
 
