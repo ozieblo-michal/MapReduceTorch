@@ -1,9 +1,18 @@
+variable "emr_cluster_name" {
+  description = "The name of the EMR cluster"
+  type        = string
+  default     = "book2flash"
+}
+
+
 resource "aws_s3_bucket_object" "dask_bootstrap_script" {
   bucket  = aws_s3_bucket.shared_bucket.bucket
   key     = "bootstrap-scripts/dask_bootstrap.sh"
   content = <<EOF
             #!/bin/bash
             sudo pip install dask[complete] distributed --upgrade
+            echo "distributed.scheduler.worker-ttl: '60s'" >> /etc/dask/distributed.yaml
+            echo "distributed.worker.memory.target: false" >> /etc/dask/distributed.yaml
             EOF
   acl     = "private"
 }
@@ -11,7 +20,7 @@ resource "aws_s3_bucket_object" "dask_bootstrap_script" {
 
 
 resource "aws_emr_cluster" "dask_cluster" {
-  name          = "dask-emr-cluster"
+  name          = var.emr_cluster_name
   release_label = "emr-6.2.0"
   applications  = ["Hadoop", "Spark"]
 
@@ -31,7 +40,7 @@ resource "aws_emr_cluster" "dask_cluster" {
 
   core_instance_group {
     instance_type = "m5.xlarge"
-    instance_count = 2
+    instance_count = 4
     ebs_config {
       size = 64
       type = "gp2"
@@ -54,7 +63,7 @@ resource "aws_emr_cluster" "dask_cluster" {
 resource "aws_emr_instance_group" "dask_cluster_spot" {
   cluster_id   = aws_emr_cluster.dask_cluster.id
   instance_type = "m5.2xlarge"
-  instance_count = 3
+  instance_count = 4
   bid_price = "0.30" 
 
   ebs_config {
