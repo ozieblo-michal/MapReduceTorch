@@ -7,10 +7,29 @@ from datasets import Dataset
 import torch
 import numpy as np
 
+import boto3
+
+import os
+
+bucket_name = os.getenv('S3_BUCKET_NAME')
+
+
+
 INPUT_TEXT_FILE_PATH = "./scraper/output/output.txt"
 FILTERED_OUTPUT_FILE_PATH = "./scraper/output/filtered_output.txt"
 TRAIN_DATASET_PARQUET_PATH = "./training/augmented_parquet/train.parquet"
 EVAL_DATASET_PARQUET_PATH = "./training/augmented_parquet/eval.parquet"
+
+
+
+def download_file_from_s3(bucket_name, object_name, local_file_name):
+    s3 = boto3.client('s3')
+    s3.download_file(bucket_name, object_name, local_file_name)
+
+def upload_file_to_s3(local_file_name, bucket_name, object_name):
+    s3 = boto3.client('s3')
+    s3.upload_file(local_file_name, bucket_name, object_name)
+
 
 
 def download_nltk_resource(resource_name: str, download_dir: str = None):
@@ -169,35 +188,12 @@ def improved_masking(
 
 
 
-def tokenize_and_mask_function(examples: dict) -> dict:
-    """
-    Tokenizes the text in 'examples' and applies improved masking.
-
-    Args:
-    - examples (dict): Dictionary containing text examples under the key "text".
-
-    Returns:
-    - dict: Dictionary containing modified input_ids, attention_mask, and labels for training.
-    """
-    inputs = tokenizer(
-        examples["text"],
-        padding="max_length",
-        truncation=True,
-        max_length=512,
-        return_tensors="pt",
-    )
-    input_ids, attention_mask, labels = improved_masking(
-        inputs["input_ids"], inputs["attention_mask"], tokenizer
-    )
-    inputs["input_ids"] = input_ids
-    inputs["attention_mask"] = attention_mask
-    inputs["labels"] = labels
-    return inputs
-
-
-def full_data_preparation_and_augmentation(input_file_path, filtered_output_file_path, train_dataset_parquet_path, eval_dataset_parquet_path, augment_rate, n):
+def full_data_preparation_and_augmentation(input_file_path, filtered_output_file_path, train_dataset_parquet_path, eval_dataset_parquet_path, augment_rate, n, bucket_name):
 
     spark = SparkSession.builder.appName("DistilBERT Training").getOrCreate()
+
+    download_file_from_s3(bucket_name, INPUT_TEXT_FILE_PATH, INPUT_TEXT_FILE_PATH)
+
 
     filter_sentences_by_token_limit(input_file_path, filtered_output_file_path)
     data = spark.read.text(filtered_output_file_path).rdd.map(lambda r: r[0]).collect()
@@ -223,6 +219,10 @@ def full_data_preparation_and_augmentation(input_file_path, filtered_output_file
     train_dataset.set_format(type='pandas').to_pandas().to_parquet(train_dataset_parquet_path)
     eval_dataset.set_format(type='pandas').to_pandas().to_parquet(eval_dataset_parquet_path)
 
+    upload_file_to_s3(TRAIN_DATASET_PARQUET_PATH, bucket_name, TRAIN_DATASET_PARQUET_PATH)
+    upload_file_to_s3(EVAL_DATASET_PARQUET_PATH, bucket_name, EVAL_DATASET_PARQUET_PATH)
+
+
 if __name__ == "__main__":
 
     full_data_preparation_and_augmentation(
@@ -233,8 +233,3 @@ if __name__ == "__main__":
         augment_rate=0.3,
         n=2
     )
-
-
-
-
-

@@ -49,8 +49,8 @@ resource "aws_ecs_task_definition" "data_formatting_task" {
     command   = ["poetry", "run", "python", "src/main.py"],
     environment = [
         {
-          name  = "S3_BUCKET_PATH",
-          value = "s3://shared-bucket-for-emr-and-fargate/processed-data/"
+          name  = "S3_BUCKET_NAME",
+          value = aws_s3_bucket.shared_bucket.id
         }
       ],
     logConfiguration = {
@@ -58,8 +58,7 @@ resource "aws_ecs_task_definition" "data_formatting_task" {
       options = {
         "awslogs-group"         = "/ecs/data-formatting-task",
         "awslogs-region"        = var.aws_region,
-        "awslogs-stream-prefix" = "ecs",
-        "s3_bucket_name"        = "${aws_s3_bucket.shared_bucket.bucket}"
+        "awslogs-stream-prefix" = "ecs"
       }
     }
   }
